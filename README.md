@@ -7,7 +7,7 @@ This mod utilizes DMF, a monkey patching framework for Darktide's Autodesk Strin
 
 - mass_item_barter_data.lua - in-game configurable variables used in the logic.
 
-- mass_item_barter_localization - localization strings used in UI.
+- mass_item_barter_localization.lua - localization strings used in UI.
 
 **Make sure you are familiar with the [DMF mod installation procedure](https://dmf-docs.darkti.de/#/installing-mods) before attempting to install or modify this repository.**
 
@@ -29,7 +29,7 @@ This option is available when previewing melee weapons, ranged weapons and curio
 
 ![Zrzut ekranu 2024-01-05 000742](https://github.com/Marcin-Galaska/mass_item_barter/assets/106023363/42ca8060-207f-45a8-8d88-8523bf78f402)
 
-## Thanks to Zombine, Redbeardt and others for their input into the community. Their work helped me a lot in the process of creating this mod. The Emperor protects.
+## Thanks to Zombine, Redbeardt and others for their input into the Darktide modding community. Their work helped me a lot in the process of creating this mod. The Emperor protects.
 
 ### License
 BSD 2-Clause License
