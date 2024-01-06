@@ -20,10 +20,9 @@ local init = function(func, ...)
     mod._mass_barter_key = mod:get("mass_barter_key")                           -- Keybind.
     mod._barterable_rarities = mod:get("barterable_rarities")                   -- Rarities that can be bartered (grey, green, blue, purple, yellow).
 
-    mod._items_to_discard = {}                                                  -- Items that will be bartered.
+    mod._undesirable_items_widget_indexes = {}                                  -- Indexes of widgets, containing undesirable items, in the inventory grid.
     mod._weapon_category = ""                                                   -- Category of items that the player is viewing and that will potentially be bartered.
     mod._mass_barter_action_confirmed = false                                   -- Whether player pressed 'Confirm' on the warning pop-up.
-    mod._mass_barter_action_completed = false                                   -- Whether mass bartering was completed.
     mod._barterable_items_present = true                                        -- Whether player has items that fulfill the requirements to be mass barterable in inventory.
     mod._equipped_item_gear_id = 0                                              -- Gear ID of equipped item
     mod._confirm_desc_table = {                                                 -- Item categories.
@@ -44,6 +43,14 @@ end
 -- ##################################################
 -- Custom functions
 -- ##################################################
+
+local _reverse_table = function(tab)
+    local reversed_tab = {}
+    for i=1, #tab do
+        reversed_tab[i] = tab[#tab + 1 - i]
+    end
+    return reversed_tab
+end
 
 local _on_mass_barter_confirmed = function()
     mod._mass_barter_action_confirmed = true
@@ -144,16 +151,28 @@ local _is_item_barterable_based_on_rarity = function(item)
     end
 end
 
-local _get_items_to_discard = function(items)
-    mod._items_to_discard = {}
-    for _, item in ipairs(items) do
-        local rating = ItemUtils.item_level(item)       -- String with the rating symbol
-        rating = string.sub(rating, 5)                  -- Get rid of the rating symbol
-        rating = tonumber(rating)                       -- Cast to number
+local _get_undesirable_items_widget_indexes = function(widgets)
+    mod._undesirable_items_widget_indexes = {}
+
+    -- Get the indexes
+    for index, widget in ipairs(widgets) do
+        local item = widget.content.element.item
+        local rating = ItemUtils.item_level(item)        -- String with the rating symbol
+        rating = string.sub(rating, 5)                   -- Get rid of the rating symbol
+        rating = tonumber(rating)                        -- Cast to number
 
         if rating <= mod._max_rating and item.gear_id ~= mod._equipped_item_gear_id and _is_item_barterable_based_on_rarity(item) then
-            table.insert(mod._items_to_discard, item)
+            table.insert(mod._undesirable_items_widget_indexes, index)
         end
+    end
+
+    -- Reverse table order so that indexes stay correct during mass bartering
+    mod._undesirable_items_widget_indexes = _reverse_table(mod._undesirable_items_widget_indexes)
+
+    if #mod._undesirable_items_widget_indexes == 0 then
+        mod._barterable_items_present = false
+    else
+        mod._barterable_items_present = true
     end
 end
 
@@ -173,83 +192,50 @@ mod:hook("InventoryWeaponsView", "_setup_input_legend", function(func, self)
 end)
 
 mod:hook_safe("InventoryWeaponsView", "_handle_input", function(self, input_service)
-    local items = self._inventory_items
-
-    -- Get undesirable items, except the currently equipped one
-    if items and #mod._items_to_discard == 0 and mod._barterable_items_present == true then
-        -- When the player opens InventoryWeaponsView, the equipped item is previewed by default
-        mod._equipped_item_gear_id = self._previewed_item.gear_id
-        _get_items_to_discard(items)
-
-        if #mod._items_to_discard == 0 then
-            mod._barterable_items_present = false
-        end
+    if not mod._mass_barter_action_confirmed then
+        return
     end
 
-    if mod._mass_barter_action_confirmed then
-        mod._mass_barter_action_confirmed = false
-        if mod._barterable_items_present == false then
-            mod:notify("No items meeting the requirements present in this section of the inventory.")
+    mod._mass_barter_action_confirmed = false
+    local grid_widgets = self:grid_widgets()
+
+    -- When the player opens InventoryWeaponsView, the equipped item is previewed by default
+    mod._equipped_item_gear_id = self._previewed_item.gear_id
+    _get_undesirable_items_widget_indexes(grid_widgets)
+
+    if not mod._barterable_items_present then
+        mod:notify("No items meeting the requirements present in this section of the inventory.")
+        return
+    end
+
+    for _, widget_index in pairs(mod._undesirable_items_widget_indexes) do
+        -- Discard item
+        InventoryWeaponsView._mark_item_for_discard(self, widget_index)
+        self:update_grid_widgets_visibility()
+
+        -- If removed widget is above previewed widget, move previewed widget up
+        local previewed_element_index = (widget_index or 1) - 1
+        local previewed_element = widget_index > 0 and self:element_by_index(previewed_element_index)
+
+        if previewed_element then
+            self:focus_on_item(previewed_element)
 
         else
-            -- Barter every undesirable item
-            for _, item in pairs(mod._items_to_discard) do
-                local gear_id = item.gear_id
-                Managers.data_service.gear:delete_gear(gear_id):next(function(result)
-                    self._inventory_items[gear_id] = nil
-                    local rewards = result and result.rewards
-
-                    -- Earn ordo dockets
-                    if rewards then
-                        local creds = rewards[1] and rewards[1].amount or 0
-                        Managers.event:trigger("event_force_wallet_update")
-                        Managers.event:trigger("event_add_notification_message", "currency", {
-                            currency = "credits",
-                            amount = creds
-                        })
-                    end
-
-                    -- Sync profile
-                    if self._profile_presets_element then
-                        self._profile_presets_element:sync_profiles_states()
-                    end
-
-                    -- Mark bartered item's widget to be removed
-                    for widget_index, widget in pairs(self:grid_widgets()) do
-                        local widget_item_gear_id = widget.content.element.item.gear_id
-                        if widget_item_gear_id == gear_id then
-                            -- Discard item
-                            self:focus_on_item(self:grid_widgets()[widget_index].content.element.item)
-                            InventoryWeaponsView._mark_item_for_discard(self, widget_index)
-                            self:update_grid_widgets_visibility()
-
-                            -- If removed widget is above previewed widget, move previewed widget up
-                            local previewed_element_index = (widget_index or 1) - 1
-                            local previewed_element = widget_index > 0 and self:element_by_index(previewed_element_index)
-
-                            if previewed_element then
-                                self:focus_on_item(previewed_element)
-
-                            else
-                                self:_stop_previewing()
-                            end
-                            break
-                        end
-                    end
-                end)
-            end
+            self:_stop_previewing()
         end
     end
+
+    mod._undesirable_items_widget_indexes = {}
 end)
 
 mod:hook_safe("InventoryWeaponsView", "on_exit", function(self)
-    mod._items_to_discard = {}
+    mod._undesirable_items_widget_indexes = {}
     mod._barterable_items_present = true
 end)
 
 mod:hook_safe("InventoryWeaponsView", "_equip_item", function(self, slot_name, item)
-    local items = self._inventory_items
+    local grid_widgets = self:grid_widgets()
 
     mod._equipped_item_gear_id = item.gear_id
-    _get_items_to_discard(items)
+    _get_undesirable_items_widget_indexes(grid_widgets)
 end)
