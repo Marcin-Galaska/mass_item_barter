@@ -39,7 +39,7 @@ local localization = {
         en = "Mass Item Barter"
     },
     mod_description = {
-        en = "Barter all weapons and curios in your inventory below given score and rarity."
+        en = "Barter all weapons and curios in your inventory below given score and rarity.\n\nAuthor: mroużon"
     },
     max_rating = {
         en = "Max Weapon Rating"

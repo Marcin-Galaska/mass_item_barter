@@ -15,22 +15,26 @@ local InventoryWeaponsView = require("scripts/ui/views/inventory_weapons_view/in
 -- Mod variables
 -- ##################################################
 
+mod._undesirable_items_widget_indexes = {}                                  -- Indexes of widgets, containing undesirable items, in the inventory grid.
+mod._weapon_category = ""                                                   -- Category of items that the player is viewing and that will potentially be bartered.
+mod._mass_barter_action_confirmed = false                                   -- Whether player pressed 'Confirm' on the warning pop-up.
+mod._barterable_items_present = true                                        -- Whether player has items that fulfill the requirements to be mass barterable in inventory.
+mod._equipped_item_gear_id = 0                                              -- Gear ID of equipped item
+mod._confirm_desc_table = {                                                 -- Item categories.
+    WEAPON_MELEE = "loc_popup_desc_melee_mass_barter_confirmation",
+    WEAPON_RANGED = "loc_popup_desc_ranged_mass_barter_confirmation",
+    GADGET = "loc_popup_desc_curio_mass_barter_confirmation"
+}
+
+mod._max_rating = mod:get("max_rating")
+mod._mass_barter_key = mod:get("mass_barter_key")
+mod._barterable_rarities = mod:get("barterable_rarities")
+
+-- ##################################################
+-- Initalization
+-- ##################################################
+
 local init = function(func, ...)
-    mod._max_rating = mod:get("max_rating")                                     -- Mass barter item rating threshold. Only items at this rating or below will be bartered.
-    mod._mass_barter_key = mod:get("mass_barter_key")                           -- Keybind.
-    mod._barterable_rarities = mod:get("barterable_rarities")                   -- Rarities that can be bartered (grey, green, blue, purple, yellow).
-
-    mod._undesirable_items_widget_indexes = {}                                  -- Indexes of widgets, containing undesirable items, in the inventory grid.
-    mod._weapon_category = ""                                                   -- Category of items that the player is viewing and that will potentially be bartered.
-    mod._mass_barter_action_confirmed = false                                   -- Whether player pressed 'Confirm' on the warning pop-up.
-    mod._barterable_items_present = true                                        -- Whether player has items that fulfill the requirements to be mass barterable in inventory.
-    mod._equipped_item_gear_id = 0                                              -- Gear ID of equipped item
-    mod._confirm_desc_table = {                                                 -- Item categories.
-        WEAPON_MELEE = "loc_popup_desc_melee_mass_barter_confirmation",
-        WEAPON_RANGED = "loc_popup_desc_ranged_mass_barter_confirmation",
-        GADGET = "loc_popup_desc_curio_mass_barter_confirmation"
-    }
-
     if func then
         func(...)
     end
